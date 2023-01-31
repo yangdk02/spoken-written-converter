@@ -3,12 +3,12 @@ import torch
 from transformers import (
     AutoTokenizer,
     AutoModelForSequenceClassification,
-    BartForConditionalGeneration,
+    T5ForConditionalGeneration,
 )
 
 if 'tokenizer' not in st.session_state:
     classifier_tokenizer = AutoTokenizer.from_pretrained('klue/bert-base', use_fast = True)
-    converter_tokenizer = AutoTokenizer.from_pretrained('gogamza/kobart-base-v2')
+    converter_tokenizer = AutoTokenizer.from_pretrained('lcw99/t5-base-korean-paraphrase')
     st.session_state.tokenizer = classifier_tokenizer, converter_tokenizer
 else:
     classifier_tokenizer, converter_tokenizer = st.session_state.tokenizer
@@ -20,12 +20,12 @@ def get_classifier():
     return model
 @st.cache(hash_funcs={torch.nn.parameter.Parameter: lambda parameter: parameter.data.numpy()}, allow_output_mutation=True)
 def get_spoken_to_written_converter():
-    model = BartForConditionalGeneration.from_pretrained('yangdk/kobart-base-v2-finetuned-spoken-to-written')
+    model = T5ForConditionalGeneration.from_pretrained('yangdk/t5-base-korean-paraphrase-finetuned-spoken-to-written-v2')
     model.eval()
     return model
 @st.cache(hash_funcs={torch.nn.parameter.Parameter: lambda parameter: parameter.data.numpy()}, allow_output_mutation=True)
 def get_written_to_spoken_converter():
-    model = BartForConditionalGeneration.from_pretrained('yangdk/kobart-base-v2-finetuned-written-to-spoken')
+    model = T5ForConditionalGeneration.from_pretrained('yangdk/t5-base-korean-paraphrase-finetuned-written-to-spoken-v2')
     model.eval()
     return model
 
@@ -39,18 +39,19 @@ str_to_int = {
     'Spoken 🗣️': 0,
     'Written ✍️': 1 
 }
-goal = str_to_int[st.radio("Set Goal 👇", ('Spoken 🗣️', 'Written ✍️'))]
+goal = st.radio("Set Goal 👇", ('Spoken 🗣️', 'Written ✍️'))
 
 col1, col2 = st.columns(2)
 with col1:
-    input_text = st.text_input("Type your text here 👇")
+    input_text = st.text_area("Type your text here 👇")
     bnt = st.button('Convert 🪄')
 with col2:
     if input_text and bnt:
         embeddings = classifier_tokenizer(input_text, return_attention_mask=False, return_token_type_ids=False, return_tensors='pt')
         output = classifier(**embeddings)
-        preds = output.logits.argmax(dim=-1)
-        if preds == goal:
+        preds = output.logits.argmax(dim=-1)        
+        if preds == str_to_int[goal]:
+            st.text_area(goal, value=input_text)
             st.success(f'No alerts')
         else:
             tokenized = converter_tokenizer(input_text, return_attention_mask=False, return_token_type_ids=False, return_tensors='pt')
